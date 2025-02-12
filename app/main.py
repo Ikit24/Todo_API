@@ -50,9 +50,7 @@ def update_todos(
     todos = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
     if todos is None:
         raise HTTPException(status_code=404, detail="Todo not found")
-    
-    if title is not None:
-        todos.title = title
+
     if title is not None:
         todos.title = title
     if description is not None:
