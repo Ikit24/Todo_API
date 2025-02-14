@@ -14,7 +14,7 @@ app = FastAPI()
 
 security = HTTPBasic()
 
-def get_current_user(credentials: HTTPBasicCredentials = Depends(security)):
+def get_current_user(credentials: Annotated[HTTPBasicCredentials, Security(security)]):
     correct_username = "admin"
     correct_password = "secret123"
     
@@ -35,21 +35,26 @@ def get_db():
 
 @app.get("/todos/")
 def read_todos(
-    current_user: str = Depends(get_current_user),  # Add this line
+    current_user: Annotated[str, Depends(get_current_user)],
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(get_db)
 ):
     todos = db.query(models.Todo).offset(skip).limit(limit).all()
     return todos
+
 @app.post("/todos/")
-def create_todo(title: str, description: str = None, db: Session = Depends(get_db)):
+def create_todo(
+    title: str, 
+    description: str = None, 
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+    ):
     todo = models.Todo(title=title, description=description)
     db.add(todo)
     db.commit()
     db.refresh(todo)
     return todo
-
 
 @app.get("/todos/{todo_id}")
 def read_todos(todo_id: int, db: Session = Depends(get_db)):
