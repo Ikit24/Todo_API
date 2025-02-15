@@ -14,11 +14,13 @@ app = FastAPI()
 
 security = HTTPBasic()
 
-def get_current_user(credentials: Annotated[HTTPBasicCredentials, Security(security)]):
+def get_current_user(
+    credentials: Annotated[HTTPBasicCredentials, Depends(security)]
+):
     correct_username = "admin"
     correct_password = "secret123"
     
-    if credentials.username != correct_username or credentials.password != correct_password:
+    if not (credentials.username == correct_username and credentials.password == correct_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
@@ -45,10 +47,10 @@ def read_todos(
 
 @app.post("/todos/")
 def create_todo(
-    title: str, 
-    description: str = None, 
-    current_user: str = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: Annotated[str, Depends(get_current_user)],
+    title: str,
+    db: Session = Depends(get_db),
+    description: str = None
     ):
     todo = models.Todo(title=title, description=description)
     db.add(todo)
@@ -57,7 +59,11 @@ def create_todo(
     return todo
 
 @app.get("/todos/{todo_id}")
-def read_todos(todo_id: int, db: Session = Depends(get_db)):
+def read_todos(
+    todo_id: int,
+    current_user: Annotated[str, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+    ):
     todos = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
     if todos is None:
         raise HTTPException(status_code=404, detail="Todo not found")
@@ -65,10 +71,11 @@ def read_todos(todo_id: int, db: Session = Depends(get_db)):
 
 @app.put("/todos/{todo_id}")
 def update_todos(
-    todo_id: int, 
+    current_user: Annotated[str, Depends(get_current_user)],
+    todo_id: int,
     title: Optional[str] = None, 
     description: Optional[str] = None, 
-    completed: Optional[bool] = None, 
+    completed: Optional[bool] = None,
     db: Session = Depends(get_db)
 ):
     todos = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
@@ -87,7 +94,11 @@ def update_todos(
     return todos
 
 @app.delete("/todos/{todo_id}")
-def delete_todos(todo_id: int, db: Session = Depends(get_db)):
+def delete_todos(
+    todo_id: int,
+    current_user: Annotated[str, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+    ):
     todos = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
     if todos is None:
         raise HTTPException(status_code=404, detail="Todo not found")
