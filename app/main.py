@@ -1,6 +1,13 @@
+# add two more article fetching
+# add update, deletion
+# add login
+
 from enum import Enum
 
 from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
+
+import os
 
 class ArticleName(str, Enum):
     morning = "morning"
@@ -8,6 +15,18 @@ class ArticleName(str, Enum):
     work = "Now get to work"
 
 app = FastAPI()
+
+@app.get("/articles/morning", response_class=PlainTextResponse)
+async def read_morning_file():
+    file_path = r"G:\Projects\todo-api\app\morning.txt"
+    try:
+        with open(file_path, "r") as file:
+            content = file.read()
+        return content
+    except FileNotFoundError:
+        return f"File not found: {file_path}"
+    except Exception as e:
+        return f"Error reading file: {str(e)}"
 
 @app.get("/articles/{article_name}")
 async def get_articles(article_name: ArticleName):
