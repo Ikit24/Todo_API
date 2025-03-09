@@ -1,108 +1,20 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from fastapi import FastAPI, Depends, HTTPException, Security, status
-from sqlalchemy.orm import Session
-from typing import Optional, Annotated
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from enum import Enum
 
-from . import models, database
+from fastapi import FastAPI
 
-models.Base.metadata.create_all(bind=database.engine)
+class ArticleName(str, Enum):
+    morning = "morning"
+    coffee = "coffee"
+    work = "Now get to work"
 
 app = FastAPI()
 
-security = HTTPBasic()
-
-def get_current_user(
-    credentials: Annotated[HTTPBasicCredentials, Depends(security)]
-):
-    correct_username = "admin"
-    correct_password = "secret123"
+@app.get("/articles/{article_name}")
+async def get_articles(article_name: ArticleName):
+    if article_name is ArticleName.morning:
+        return {"article_anme": article_name, "message": "Your very thorough morning rutine"}
     
-    if not (credentials.username == correct_username and credentials.password == correct_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    return credentials.username
-
-def get_db():
-    db = database.SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-@app.get("/todos/")
-def read_todos(
-    current_user: Annotated[str, Depends(get_current_user)],
-    skip: int = 0, 
-    limit: int = 100, 
-    db: Session = Depends(get_db)
-):
-    todos = db.query(models.Todo).offset(skip).limit(limit).all()
-    return todos
-
-@app.post("/todos/")
-def create_todo(
-    current_user: Annotated[str, Depends(get_current_user)],
-    title: str,
-    db: Session = Depends(get_db),
-    description: str = None
-    ):
-    todo = models.Todo(title=title, description=description)
-    db.add(todo)
-    db.commit()
-    db.refresh(todo)
-    return todo
-
-@app.get("/todos/{todo_id}")
-def read_todos(
-    todo_id: int,
-    current_user: Annotated[str, Depends(get_current_user)],
-    db: Session = Depends(get_db)
-    ):
-    todos = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
-    if todos is None:
-        raise HTTPException(status_code=404, detail="Todo not found")
-    return todos
-
-@app.put("/todos/{todo_id}")
-def update_todos(
-    current_user: Annotated[str, Depends(get_current_user)],
-    todo_id: int,
-    title: Optional[str] = None, 
-    description: Optional[str] = None, 
-    completed: Optional[bool] = None,
-    db: Session = Depends(get_db)
-):
-    todos = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
-    if todos is None:
-        raise HTTPException(status_code=404, detail="Todo not found")
-
-    if title is not None:
-        todos.title = title
-    if description is not None:
-        todos.description = description
-    if completed is not None:
-        todos.completed = completed
+    if article_name.value == "coffee":
+        return {"article_anme": article_name, "message": "Good ol' sip"}
     
-    db.commit()
-    db.refresh(todos)
-    return todos
-
-@app.delete("/todos/{todo_id}")
-def delete_todos(
-    todo_id: int,
-    current_user: Annotated[str, Depends(get_current_user)],
-    db: Session = Depends(get_db)
-    ):
-    todos = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
-    if todos is None:
-        raise HTTPException(status_code=404, detail="Todo not found")
-    
-    db.delete(todos)
-    db.commit()
-    return {"message": "Todo deleted successfully"}
+    return {"article_anme": article_name, "message": "Now get to work"}
