@@ -1,92 +1,44 @@
-# add login
-# create both users and tasks.
 # be able to update tasks (their status) and even delete them.
 # Get a list of tasks, filter them by status and get the details of each one.
 # fastapi dev main.py - to start the server
 
-from typing import Annotated
-
-from .user_auth import *
-
-from fastapi import Depends, FastAPI, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-
-fake_users_db = {
-    "johndoe": {
-        "username": "johndoe",
-        "full_name": "John Doe",
-        "email": "johndoe@example.com",
-        "hashed_password": "fakehashedsecret",
-        "disabled": False,
-    },
-    "alice": {
-        "username": "alice",
-        "full_name": "Alice Wonderson",
-        "email": "alice@example.com",
-        "hashed_password": "fakehashedsecret2",
-        "disabled": True,
-    },
-}
+from typing import List
 
 app = FastAPI()
 
-def fake_hash_password(password: str):
-    return "fakehashed" + password
+class Article(BaseModel):
+    id: int
+    name: str
+    price: float
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+with open("user_auth.py") as file:
+    exec(file.read())
 
-class User(BaseModel):
-    username: str
-    email: str | None = None
-    full_name: str | None = None
-    disabled: bool | None = None
+articles = []
 
-class UserInDB(User):
-    hashed_password: str
+@app.get("/articles", response_model=List[Article])
+async def read_articles():
+    return articles
 
-def get_user(db, username: str):
-    if username in db:
-        user_dict = db[username]
-        return UserInDB(**user_dict)
+@app.post("/articles", response_model=Article)
+async def create_article(article: Article):
+    articles.append(article)
+    return article
 
-def fake_decode_token(token):
-    # This doesn't provide any security at all
-    # Check the next version
-    user = get_user(fake_users_db, token)
-    return user
+@app.put("/articles/{article_id}", response_model=Article)
+async def update_article(article_id: int, article: Article):
+    if article_id < 0 or article_id >= len(articles):
+        raise HTTPException(status_code=404, detail="Article not found")
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
-    user = fake_decode_token(token)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user
+    articles[article_id] = article
+    return article
 
-async def get_current_active_user(
-    current_user: Annotated[User, Depends(get_current_user)],
-):
-    if current_user.disabled:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return current_user
+@app.delete("/articles/{article_id}")
+async def delete_article(article_id: int):
+    if article_id < 0 or article_id >= len(articles):
+        raise HTTPException(status_code=404, detail="Article not found")
 
-@app.post("/token")
-async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
-    user_dict = fake_users_db.get(form_data.username)
-    if not user_dict:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-    user = UserInDB(**user_dict)
-    hashed_password = fake_hash_password(form_data.password)
-    if not hashed_password == user.hashed_password:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-
-    return {"access_token": user.username, "token_type": "bearer"}
-
-@app.get("/users/me")
-async def read_users_me(
-    current_user: Annotated[User, Depends(get_current_active_user)],
-):
-    return current_user
+    del articles[article_id]
+    return {"message": "Article deleted"}
