@@ -1,23 +1,43 @@
-# be able to update tasks (their status) and even delete them.
-# Get a list of tasks, filter them by status and get the details of each one.
-# fastapi dev main.py - to start the server
-
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
-from typing import List
+from typing import List, Annotated
+from fastapi.security import OAuth2PasswordRequestForm
+
+# Import from user_auth.py
+from .user_auth import (
+    User, fake_users_db, fake_hash_password, 
+    get_current_active_user, UserInDB
+)
 
 app = FastAPI()
 
+# Article model
 class Article(BaseModel):
     id: int
     name: str
     price: float
 
-with open("user_auth.py") as file:
-    exec(file.read())
-
 articles = []
 
+# Authentication endpoints
+@app.post("/token")
+async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+    user_dict = fake_users_db.get(form_data.username)
+    if not user_dict:
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    user = UserInDB(**user_dict)
+    hashed_password = fake_hash_password(form_data.password)
+    if not hashed_password == user.hashed_password:
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    return {"access_token": user.username, "token_type": "bearer"}
+
+@app.get("/users/me")
+async def read_users_me(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    return current_user
+
+# Article endpoints
 @app.get("/articles", response_model=List[Article])
 async def read_articles():
     return articles
@@ -29,16 +49,16 @@ async def create_article(article: Article):
 
 @app.put("/articles/{article_id}", response_model=Article)
 async def update_article(article_id: int, article: Article):
-    if article_id < 0 or article_id >= len(articles):
-        raise HTTPException(status_code=404, detail="Article not found")
-
-    articles[article_id] = article
-    return article
+    for i, existing_article in enumerate(articles):
+        if existing_article.id == article_id:
+            articles[i] = article
+            return article
+    raise HTTPException(status_code=404, detail="Article not found")
 
 @app.delete("/articles/{article_id}")
 async def delete_article(article_id: int):
-    if article_id < 0 or article_id >= len(articles):
-        raise HTTPException(status_code=404, detail="Article not found")
-
-    del articles[article_id]
-    return {"message": "Article deleted"}
+    for i, existing_article in enumerate(articles):
+        if existing_article.id == article_id:
+            del articles[i]
+            return {"message": "Article deleted"}
+    raise HTTPException(status_code=404, detail="Article not found")
