@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Query
 from pydantic import BaseModel
-from typing import List, Annotated
+from typing import List, Annotated, Optional
+from enum import Enum
+
 from fastapi.security import OAuth2PasswordRequestForm
 
-# Import from user_auth.py
+
 from .user_auth import (
     User, fake_users_db, fake_hash_password, 
     get_current_active_user, UserInDB
@@ -11,11 +13,18 @@ from .user_auth import (
 
 app = FastAPI()
 
-# Article model
+# Get a list of tasks, filter them by status and get the details of each one.
+
+class ArtucleStatus(str, Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
 class Article(BaseModel):
     id: int
     name: str
     price: float
+    status: ArticleStatus = ArticleStatus.DRAFT
 
 articles = []
 
@@ -25,8 +34,10 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     user_dict = fake_users_db.get(form_data.username)
     if not user_dict:
         raise HTTPException(status_code=400, detail="Incorrect username or password")
+
     user = UserInDB(**user_dict)
     hashed_password = fake_hash_password(form_data.password)
+
     if not hashed_password == user.hashed_password:
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     return {"access_token": user.username, "token_type": "bearer"}
